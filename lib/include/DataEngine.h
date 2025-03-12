@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <functional>
 #include <filesystem>
+#include <unordered_map>
 #include "Contact.h"
 class DataEngine
 {
@@ -37,7 +38,7 @@ class DataEngine
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
         void workerThread();
         void openDatabase(const std::string& dbPath);
-        void notifyCallback(const std::string dbName, const Contact& contact);
+        void notifyCallback(const std::string dbName,const int& id , const std::shared_ptr<Contact>& contact);
         void checkOperation(int ret, const std::string& message);
 
         DataEngine();
@@ -51,6 +52,8 @@ class DataEngine
         bool mRunning;
         std::vector<std::function<void(const std::string&, const Contact&)>> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;
+        std::unordered_map<std::string,std::shared_ptr<Contact>> mContactsTable;
+
 };
 #endif // DATAENGINE_H
 

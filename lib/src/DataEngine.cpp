@@ -66,15 +66,62 @@ DataEngine::~DataEngine()
 
 void DataEngine::checkOperation(int ret, const std::string& message)
 {
-    if (SQLITE_OK != ret) {
-        throw std::runtime_error("SQLite error during " + message + ": " + sqlite3_errmsg(mDatabase));
+    switch (ret)
+    {
+        case SQLITE_OK: {
+            [[fallthrough]];
+        }
+        case SQLITE_DONE: {
+            break;
+        }
+        default: {
+            throw std::runtime_error("SQLite error during " + message + ": " + sqlite3_errmsg(mDatabase));
+            break;
+        }
     }
-    
 }
 
 bool DataEngine::addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri)
 {
+    {
+        std::lock_guard<std::mutex> lock(mQueueMutex);
+        mTaskQueue.emplace([name, numbers, notes, uri, this]() {
+            {
+                std::lock_guard<std::mutex> lock(mMutex);
+                const char* insertSQL = "INSERT INTO contacts (name, phone, photo, notes) VALUES (?, ?, ?, ?);";
+                sqlite3_stmt* stmt;
+                int result = sqlite3_prepare_v2(mDatabase, insertSQL, -1, &stmt, nullptr);
+                checkOperation(result, " prepare insert ");
 
+                if(mContactsTable.find(name) != mContactsTable.end()) {
+                    std::cout << "Contact exists, dont need add \n";
+                    return;
+                }
+
+                std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers(numbers).setNotes(notes).setImageUri(uri).buildShared();
+                mContactsTable.emplace(name,contact);
+
+                try
+                {
+                    sqlite3_bind_text(stmt, 1, contact->getName().c_str(), -1, SQLITE_STATIC);
+                    sqlite3_bind_text(stmt, 2, contact->getPhoneNumbersString().c_str(), -1, SQLITE_STATIC);
+                    sqlite3_bind_blob(stmt, 3, contact->getblobImage().data(), contact->getblobImage().size(), SQLITE_STATIC);
+                    sqlite3_bind_text(stmt, 4, contact->getNotes().c_str(), -1, SQLITE_STATIC);
+                    result = sqlite3_step(stmt);
+                    checkOperation(result, " inserting " );
+                    int id = sqlite3_last_insert_rowid(mDatabase);
+                    sqlite3_finalize(stmt);
+                    notifyCallback(DB_NAME, id, contact);
+                }
+                catch(const std::exception& e)
+                {
+                    std::cerr << e.what() << '\n';
+                }
+                
+            }
+        });
+        mQueueCV.notify_all();
+    }
 }
 
 bool DataEngine::addContact(const Contact& contact)
@@ -127,7 +174,8 @@ void DataEngine::openDatabase(const std::string& dbPath)
 
 }
 
-void DataEngine::notifyCallback(const std::string dbName, const Contact& contact)
+void DataEngine::notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact)
+
 {
 
 }
