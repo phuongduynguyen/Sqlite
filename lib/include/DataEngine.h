@@ -15,17 +15,25 @@
 #include <filesystem>
 #include <unordered_map>
 #include "Contact.h"
+
 class DataEngine
 {
     public:
         static DataEngine& getInstance();
 
+        enum class Action
+        {
+            None,
+            Insert,
+            Update,
+            Delete
+        };
         class DatabaseCallback {
             public:
-                virtual void onDatabaseChanged(const std::string dbName, const Contact& contact) = 0;
+                virtual void onDatabaseChanged(const std::string dbName, const Action& action ,const int& id, const std::shared_ptr<Contact>& contact) = 0;
         };
 
-        bool addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri);
+        void addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri);
         bool addContact(const Contact& contact);
         bool updateContact(const int& id, const Contact& contact);
         bool deleteContact(const int& id);
@@ -38,8 +46,9 @@ class DataEngine
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
         void workerThread();
         void openDatabase(const std::string& dbPath);
-        void notifyCallback(const std::string dbName,const int& id , const std::shared_ptr<Contact>& contact);
+        void notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action);
         void checkOperation(int ret, const std::string& message);
+        static void onUpdateHook(void* userData, int operation, const char* databaseName, const char* tableName, sqlite3_int64 rowId);
 
         DataEngine();
         ~DataEngine();
@@ -50,7 +59,7 @@ class DataEngine
         std::condition_variable mQueueCV;
         std::thread* mWorkerThread;
         bool mRunning;
-        std::vector<std::function<void(const std::string&, const Contact&)>> mCallbacks;
+        std::vector<DataEngine::DatabaseCallback*> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;
         std::unordered_map<std::string,std::shared_ptr<Contact>> mContactsTable;
 

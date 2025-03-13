@@ -72,6 +72,11 @@ class Contact final
         std::vector<unsigned char>  getblobImage() const;
         void showImage();
         std::string toString() const;
+        void setName(const std::string& name);
+        void setPhoneNumbers(const std::string& phoneNums);
+        void setNotes(const std::string& notes);
+        void setUri(const std::string& uri);
+
     private:
         Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri);
 

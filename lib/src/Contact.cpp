@@ -76,3 +76,24 @@ std::string Contact::toString() const {
     // TBD: Need phasing to string which insert in database
     return "";
 }
+
+void Contact::setName(const std::string& name)
+{
+    mName = name;
+}
+
+void Contact::setPhoneNumbers(const std::string& phoneNums)
+{
+    // Todo: Separate list phone numbers to list
+    mNumbers.emplace_back(phoneNums);
+}
+
+void Contact::setNotes(const std::string& notes)
+{
+    mNotes = notes;
+}
+
+void Contact::setUri(const std::string& uri)
+{
+    mUri = uri;
+}

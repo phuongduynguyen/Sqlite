@@ -4,6 +4,8 @@ static DataEngine* gInstance = nullptr;
 
 static const std::string DB_NAME = "PhoneContact.db";
 
+std::ostream& operator<<(std::ostream& strm, const DataEngine::Action& values);
+
 DataEngine& DataEngine::getInstance()
 {
     if (gInstance == nullptr) {
@@ -43,6 +45,7 @@ DataEngine::DataEngine()
     }
     
     mWorkerThread = new std::thread(&DataEngine::workerThread, this);
+    sqlite3_update_hook(mDatabase, onUpdateHook, this);
 }
 
 DataEngine::~DataEngine()
@@ -62,6 +65,7 @@ DataEngine::~DataEngine()
     if (mDatabase != nullptr) {
         sqlite3_close(mDatabase);
     }
+    
 }
 
 void DataEngine::checkOperation(int ret, const std::string& message)
@@ -81,7 +85,7 @@ void DataEngine::checkOperation(int ret, const std::string& message)
     }
 }
 
-bool DataEngine::addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri)
+void DataEngine::addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri)
 {
     {
         std::lock_guard<std::mutex> lock(mQueueMutex);
@@ -107,11 +111,12 @@ bool DataEngine::addContact(const std::string& name, const std::vector<std::stri
                     sqlite3_bind_text(stmt, 2, contact->getPhoneNumbersString().c_str(), -1, SQLITE_STATIC);
                     sqlite3_bind_blob(stmt, 3, contact->getblobImage().data(), contact->getblobImage().size(), SQLITE_STATIC);
                     sqlite3_bind_text(stmt, 4, contact->getNotes().c_str(), -1, SQLITE_STATIC);
+
                     result = sqlite3_step(stmt);
                     checkOperation(result, " inserting " );
                     int id = sqlite3_last_insert_rowid(mDatabase);
                     sqlite3_finalize(stmt);
-                    notifyCallback(DB_NAME, id, contact);
+                    notifyCallback(DB_NAME, id, contact, DataEngine::Action::Insert);
                 }
                 catch(const std::exception& e)
                 {
@@ -126,7 +131,9 @@ bool DataEngine::addContact(const std::string& name, const std::vector<std::stri
 
 bool DataEngine::addContact(const Contact& contact)
 {
-
+    {
+        std::lock_guard<std::mutex> lock(mQueueMutex);
+    }
 }
 
 bool DataEngine::updateContact(const int& id, const Contact& contact)
@@ -174,9 +181,99 @@ void DataEngine::openDatabase(const std::string& dbPath)
 
 }
 
-void DataEngine::notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact)
-
+void DataEngine::notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)
 {
 
 }
 
+void DataEngine::onUpdateHook(void* userData, int operation, const char* databaseName, const char* tableName, sqlite3_int64 rowId)
+{
+    if (!userData) {
+        std::cout << "onUpdateHook fail due to null userData\n";
+        return;
+    }
+    std::string name = "";
+    std::string phone = "";
+    const void* photo = "";
+    std::string notes = "";
+
+    DataEngine* instance = static_cast<DataEngine*>(userData);
+    DataEngine::Action action = DataEngine::Action::None;
+    sqlite3_stmt* stmt;
+    std::string query = "SELECT name, phone, photo, notes FROM " + std::string(tableName) + " WHERE rowid = ?;";
+    if (sqlite3_prepare_v2(instance->mDatabase, query.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(stmt, 1, rowId);
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+            photo = reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 2));
+            notes = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            std::cout << "Affected Contact: Name=" << name << ", Phone=" << phone << ", Photo=" << photo << ", Notes=" << notes << "\n";
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    std::shared_ptr<Contact> contact;
+    switch (operation)
+    {
+        case SQLITE_INSERT: {
+            action = DataEngine::Action::Insert;
+            if (instance->mContactsTable.find(name) == instance->mContactsTable.end()) {
+                contact = Contact::Builder().setName(name).setPhoneNumbers({phone}).setNotes(notes).buildShared();
+                instance->mContactsTable.emplace(name,contact);
+            }
+            break;
+        }
+        case SQLITE_UPDATE: {
+            action = DataEngine::Action::Update;
+            std::unordered_map<std::string, std::shared_ptr<Contact>>::iterator foundedItem = instance->mContactsTable.find(name);
+            if (foundedItem != instance->mContactsTable.end()) {
+                contact = foundedItem->second;
+                if (name != contact->getName()){
+                    std::string oldName = contact->getName();
+                    contact->setName(name);
+                    instance->mContactsTable.erase(oldName);
+                    instance->mContactsTable.emplace(name,contact);
+                }
+                
+                contact->setNotes(notes);
+                contact->setPhoneNumbers({phone});
+                // contact->setUri("");
+            }
+            break;
+        }
+        case SQLITE_DELETE: {
+            action = DataEngine::Action::Delete;
+            std::unordered_map<std::string, std::shared_ptr<Contact>>::iterator foundedItem = instance->mContactsTable.find(name);
+            if(foundedItem != instance->mContactsTable.end()) {
+                contact = foundedItem->second;
+                instance->mContactsTable.erase(name);
+            }
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+    std::cout << "onUpdateHook action: " << action << " Database: " << databaseName << " tableName: " << tableName << " rowId: " << rowId << "\n";
+    instance->notifyCallback(DB_NAME, rowId, contact, action);
+} 
+
+std::ostream& operator<<(std::ostream& strm, const DataEngine::Action& action)
+{
+    std::ostream *ptr = &strm;
+    static const char * valueTbl[] = {
+        "None"
+        "Insert",
+        "Update",
+        "Delete",
+    };
+    uint32_t type = static_cast<uint32_t>(action);
+    if (type > static_cast<uint32_t>(3)) {
+        strm << "Unknown";
+    }
+    else {
+        strm << valueTbl[type];
+    }
+    return *ptr;
+}
