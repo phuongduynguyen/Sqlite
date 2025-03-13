@@ -46,12 +46,13 @@ class DataEngine
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
         void workerThread();
         void openDatabase(const std::string& dbPath);
-        void notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action);
+        void notifyCallback(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action);
         void checkOperation(int ret, const std::string& message);
         static void onUpdateHook(void* userData, int operation, const char* databaseName, const char* tableName, sqlite3_int64 rowId);
 
         DataEngine();
         ~DataEngine();
+
         sqlite3* mDatabase;
         std::mutex mMutex;
         std::queue<std::function<void()>> mTaskQueue;
@@ -62,7 +63,6 @@ class DataEngine
         std::vector<DataEngine::DatabaseCallback*> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;
         std::unordered_map<std::string,std::shared_ptr<Contact>> mContactsTable;
-
 };
 #endif // DATAENGINE_H
 

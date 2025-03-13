@@ -105,8 +105,7 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
                 std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers(numbers).setNotes(notes).setImageUri(uri).buildShared();
                 mContactsTable.emplace(name,contact);
 
-                try
-                {
+                try {
                     sqlite3_bind_text(stmt, 1, contact->getName().c_str(), -1, SQLITE_STATIC);
                     sqlite3_bind_text(stmt, 2, contact->getPhoneNumbersString().c_str(), -1, SQLITE_STATIC);
                     sqlite3_bind_blob(stmt, 3, contact->getblobImage().data(), contact->getblobImage().size(), SQLITE_STATIC);
@@ -118,11 +117,9 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
                     sqlite3_finalize(stmt);
                     notifyCallback(DB_NAME, id, contact, DataEngine::Action::Insert);
                 }
-                catch(const std::exception& e)
-                {
+                catch(const std::exception& e) {
                     std::cerr << e.what() << '\n';
                 }
-                
             }
         });
         mQueueCV.notify_all();
@@ -181,7 +178,7 @@ void DataEngine::openDatabase(const std::string& dbPath)
 
 }
 
-void DataEngine::notifyCallback(const std::string dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)
+void DataEngine::notifyCallback(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)
 {
 
 }
@@ -229,13 +226,14 @@ void DataEngine::onUpdateHook(void* userData, int operation, const char* databas
             std::unordered_map<std::string, std::shared_ptr<Contact>>::iterator foundedItem = instance->mContactsTable.find(name);
             if (foundedItem != instance->mContactsTable.end()) {
                 contact = foundedItem->second;
+
                 if (name != contact->getName()){
                     std::string oldName = contact->getName();
                     contact->setName(name);
                     instance->mContactsTable.erase(oldName);
                     instance->mContactsTable.emplace(name,contact);
                 }
-                
+
                 contact->setNotes(notes);
                 contact->setPhoneNumbers({phone});
                 // contact->setUri("");
@@ -256,8 +254,10 @@ void DataEngine::onUpdateHook(void* userData, int operation, const char* databas
         }
     }
     std::cout << "onUpdateHook action: " << action << " Database: " << databaseName << " tableName: " << tableName << " rowId: " << rowId << "\n";
-    instance->notifyCallback(DB_NAME, rowId, contact, action);
-} 
+    instance->mTaskQueue.emplace([instance, rowId, contact, action](){
+        instance->notifyCallback(DB_NAME, rowId, contact, action);
+    });
+}
 
 std::ostream& operator<<(std::ostream& strm, const DataEngine::Action& action)
 {
