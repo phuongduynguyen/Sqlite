@@ -14,6 +14,7 @@
 #include <functional>
 #include <filesystem>
 #include <unordered_map>
+#include <list>
 #include "Contact.h"
 
 class DataEngine
@@ -30,7 +31,7 @@ class DataEngine
         };
         class DatabaseCallback {
             public:
-                virtual void onDatabaseChanged(const std::string dbName, const Action& action ,const int& id, const std::shared_ptr<Contact>& contact) = 0;
+                virtual void onDatabaseChanged(const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact) = 0;
         };
 
         void addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri);
@@ -55,7 +56,7 @@ class DataEngine
 
         sqlite3* mDatabase;
         std::mutex mMutex;
-        std::queue<std::function<void()>> mTaskQueue;
+        std::list<std::function<void()>> mTaskQueue;
         std::mutex mQueueMutex;
         std::condition_variable mQueueCV;
         std::thread* mWorkerThread;

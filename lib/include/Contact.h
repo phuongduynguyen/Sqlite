@@ -56,7 +56,7 @@ class Contact final
                 }
 
                 std::shared_ptr<Contact> buildShared() {
-                    return std::shared_ptr<Contact>(new Contact(mName, mNumbers, mNotes,mUri));
+                    return std::shared_ptr<Contact>(new Contact(mName, mNumbers, mNotes, mUri));
                 }
 
                 std::unique_ptr<Contact> buildUnique() {

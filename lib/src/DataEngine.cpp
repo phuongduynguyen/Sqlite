@@ -20,10 +20,13 @@ DataEngine::DataEngine()
         std::cout << "Database " << DB_NAME << " not exists, creating .., \n";
     }
 
-    int result = sqlite3_open(DB_NAME.c_str(), &mDatabase);
+    int result = sqlite3_open_v2(DB_NAME.c_str(), &mDatabase, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
     checkOperation(result, " open database ");
 
     result = sqlite3_exec(mDatabase, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    checkOperation(result, " exec database in WAL mode");
+
+    result =  sqlite3_exec(mDatabase, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
     checkOperation(result, " exec database in WAL mode");
 
     const char* createTableSQL = 
@@ -43,7 +46,7 @@ DataEngine::DataEngine()
         sqlite3_free(mDatabase);
         throw std::runtime_error("Failed to create table: " + error);
     }
-    
+    mRunning = true;
     mWorkerThread = new std::thread(&DataEngine::workerThread, this);
     sqlite3_update_hook(mDatabase, onUpdateHook, this);
 }
@@ -76,6 +79,7 @@ void DataEngine::checkOperation(int ret, const std::string& message)
             [[fallthrough]];
         }
         case SQLITE_DONE: {
+            std::cout << message << " success\n";
             break;
         }
         default: {
@@ -85,11 +89,28 @@ void DataEngine::checkOperation(int ret, const std::string& message)
     }
 }
 
+static void debugStmt(sqlite3_stmt* stmt) {
+    if (!stmt) {
+        std::cout << "Stmt is null\n";
+        return;
+    }
+    std::cout << "Debugging sqlite3_stmt:\n";
+    std::cout << "  - Parameter count: " << sqlite3_bind_parameter_count(stmt) << "\n";
+    std::cout << "  - SQL: " << sqlite3_sql(stmt) << "\n";
+    const char* expandedSql = sqlite3_expanded_sql(stmt);
+    if (expandedSql) {
+        std::cout << "  - Expanded SQL: " << expandedSql << "\n";
+        sqlite3_free((void*)expandedSql);
+    } else {
+        std::cout << "  - Expanded SQL not available (SQLite version too old or no bindings yet)\n";
+    }
+}
+
 void DataEngine::addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri)
 {
     {
         std::lock_guard<std::mutex> lock(mQueueMutex);
-        mTaskQueue.emplace([name, numbers, notes, uri, this]() {
+        mTaskQueue.emplace_back([name, numbers, notes, uri, this]() {
             {
                 std::lock_guard<std::mutex> lock(mMutex);
                 const char* insertSQL = "INSERT INTO contacts (name, phone, photo, notes) VALUES (?, ?, ?, ?);";
@@ -104,15 +125,22 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
 
                 std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers(numbers).setNotes(notes).setImageUri(uri).buildShared();
                 mContactsTable.emplace(name,contact);
-
                 try {
-                    sqlite3_bind_text(stmt, 1, contact->getName().c_str(), -1, SQLITE_STATIC);
-                    sqlite3_bind_text(stmt, 2, contact->getPhoneNumbersString().c_str(), -1, SQLITE_STATIC);
-                    sqlite3_bind_blob(stmt, 3, contact->getblobImage().data(), contact->getblobImage().size(), SQLITE_STATIC);
+                    std::string name = contact->getName();
+                    sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
+                    std::string phone = contact->getPhoneNumbersString();
+                    sqlite3_bind_text(stmt, 2, phone.c_str(), -1, SQLITE_STATIC);
+                    if (contact->getblobImage().size() == 0) {
+                        sqlite3_bind_blob(stmt, 3, contact->getblobImage().data(), contact->getblobImage().size(), SQLITE_STATIC);
+                    }
+                    else {
+                        sqlite3_bind_null(stmt, 3);
+                    }
                     sqlite3_bind_text(stmt, 4, contact->getNotes().c_str(), -1, SQLITE_STATIC);
-
+                    debugStmt(stmt);
                     result = sqlite3_step(stmt);
                     checkOperation(result, " inserting " );
+
                     int id = sqlite3_last_insert_rowid(mDatabase);
                     sqlite3_finalize(stmt);
                     notifyCallback(DB_NAME, id, contact, DataEngine::Action::Insert);
@@ -160,7 +188,6 @@ std::vector<std::shared_ptr<Contact>> DataEngine::searchByNumber(const std::stri
 
 void DataEngine::registerCallback(DataEngine::DatabaseCallback* callback)
 {
-
 }
 
 std::vector<unsigned char> DataEngine::loadJPEG(const std::string& filePath)
@@ -170,7 +197,25 @@ std::vector<unsigned char> DataEngine::loadJPEG(const std::string& filePath)
 
 void DataEngine::workerThread()
 {
+    while(mRunning)
+    {
+        std::list<std::function<void()>> taskQueue;
+        {
+            std::unique_lock<std::mutex> lock(mQueueMutex);
+            mQueueCV.wait(lock,[this](){
+                return !mTaskQueue.empty();
+            });
+            taskQueue = mTaskQueue;
+            mTaskQueue.clear();
+        }
 
+        while (!taskQueue.empty())
+        {
+            std::function<void()> task = std::move(taskQueue.front());
+            taskQueue.pop_front();
+            task();
+        }
+    }
 }
 
 void DataEngine::openDatabase(const std::string& dbPath)
@@ -209,7 +254,7 @@ void DataEngine::onUpdateHook(void* userData, int operation, const char* databas
         }
         sqlite3_finalize(stmt);
     }
-
+    
     std::shared_ptr<Contact> contact;
     switch (operation)
     {
@@ -254,7 +299,7 @@ void DataEngine::onUpdateHook(void* userData, int operation, const char* databas
         }
     }
     std::cout << "onUpdateHook action: " << action << " Database: " << databaseName << " tableName: " << tableName << " rowId: " << rowId << "\n";
-    instance->mTaskQueue.emplace([instance, rowId, contact, action](){
+    instance->mTaskQueue.emplace_back([instance, rowId, contact, action](){
         instance->notifyCallback(DB_NAME, rowId, contact, action);
     });
 }
