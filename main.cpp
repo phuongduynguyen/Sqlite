@@ -24,12 +24,12 @@ int main(void)
       std::cout << "Enter Message: ";
       std::getline(std::cin, input);
       if (input == "add") {
-        std::cout << "Main add thread: " << std::this_thread::get_id()  << "\n";
-        instance.addContact("duy", {"0865950091"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
+        instance.addContact("Duy", {"0865950091"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
         instance.addContact("Huy", {"0999999999"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
-
       }
-      
+      else if (input == "dump") {
+        instance.dump();
+      }
     }
     
 }

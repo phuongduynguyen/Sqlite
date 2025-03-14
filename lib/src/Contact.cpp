@@ -1,10 +1,11 @@
 #include <Contact.h>
 #include <cerrno>
 #include <cstring>
-Contact::Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri) : mName(name),
+Contact::Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri, const std::vector<unsigned char>& blob) : mName(name),
                                                                                                                                      mNumbers(numbers),
                                                                                                                                      mNotes(notes),
-                                                                                                                                     mUri(uri)
+                                                                                                                                     mUri(uri),
+                                                                                                                                     mImagesBlob(blob)
 {
     std::FILE* file = std::fopen(mUri.c_str(), "rb");
     if (file) {
@@ -42,10 +43,21 @@ std::vector<std::string> Contact::getPhoneNumbers() const
 std::string Contact::getPhoneNumbersString() const
 {
     std::ostringstream oss;
-    if(!mNumbers.empty()) {
-        oss << mNumbers[0];
-        for (size_t i = 0; i < mNumbers.size(); i++) {
-            oss << ' ' << mNumbers[i];
+    switch (mNumbers.size())
+    {
+        case 0: {
+            break;
+        }
+        case 1: {
+            oss << mNumbers[0];
+            break;
+        }
+        default: {
+            oss << mNumbers[0];
+            for (size_t i = 1; i < mNumbers.size(); i++) {
+                oss << "," << mNumbers[i];
+            }
+            break;
         }
     }
     return oss.str();
@@ -72,8 +84,7 @@ void Contact::showImage()
 }
 
 std::string Contact::toString() const {
-    // TBD: Need phasing to string which insert in database
-    return "";
+    return "Contact - name: " + mName + " number: " + getPhoneNumbersString() + " Notes: " + mNotes + "\n";
 }
 
 void Contact::setName(const std::string& name)
@@ -95,4 +106,9 @@ void Contact::setNotes(const std::string& notes)
 void Contact::setUri(const std::string& uri)
 {
     mUri = uri;
+}
+
+void Contact::setBlobImage(const std::vector<unsigned char>& blob)
+{
+    mImagesBlob = blob;
 }

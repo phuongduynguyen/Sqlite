@@ -18,7 +18,7 @@ class Contact final
                 std::vector<std::string> mNumbers;
                 std::string mNotes;
                 std::string mUri;
-   
+                std::vector<unsigned char> mBlob;
             public:
                 Builder(const Contact& contact) {
                     mName = contact.getName();
@@ -51,6 +51,11 @@ class Contact final
                     return *this;
                 }
 
+                Builder& setBlobImage(const std::vector<unsigned char>& blob) {
+                    mBlob = blob;
+                    return *this;
+                }
+
                 Contact build() {
                     return Contact(mName, mNumbers, mNotes, mUri);
                 }
@@ -76,9 +81,9 @@ class Contact final
         void setPhoneNumbers(const std::string& phoneNums);
         void setNotes(const std::string& notes);
         void setUri(const std::string& uri);
-
+        void setBlobImage(const std::vector<unsigned char>& blob);
     private:
-        Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri);
+        Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri, const std::vector<unsigned char>& blob = std::vector<unsigned char>{});
 
         std::string mName;
         std::vector<std::string> mNumbers;

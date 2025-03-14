@@ -42,8 +42,10 @@ class DataEngine
         std::vector<std::shared_ptr<Contact>> searchByName(const std::string& name);
         std::vector<std::shared_ptr<Contact>> searchByNumber(const std::string& number);
         void registerCallback(DataEngine::DatabaseCallback* callback);
-
+        void dump();
+        
     private:
+        void syncData(); 
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
         void workerThread();
         void openDatabase(const std::string& dbPath);

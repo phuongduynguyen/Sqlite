@@ -21,13 +21,13 @@ DataEngine::DataEngine()
     }
 
     int result = sqlite3_open_v2(DB_NAME.c_str(), &mDatabase, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
-    checkOperation(result, " open database ");
+    checkOperation(result, "Open database ");
 
     result = sqlite3_exec(mDatabase, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
-    checkOperation(result, " exec database in WAL mode");
+    checkOperation(result, "Exec database in WAL mode");
 
     result =  sqlite3_exec(mDatabase, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
-    checkOperation(result, " exec database in WAL mode");
+    checkOperation(result, "Exec database in PRAGMa ");
 
     const char* createTableSQL = 
             "CREATE TABLE IF NOT EXISTS contacts ("
@@ -49,6 +49,7 @@ DataEngine::DataEngine()
     mRunning = true;
     mWorkerThread = new std::thread(&DataEngine::workerThread, this);
     sqlite3_update_hook(mDatabase, onUpdateHook, this);
+    syncData();
 }
 
 DataEngine::~DataEngine()
@@ -69,6 +70,36 @@ DataEngine::~DataEngine()
         sqlite3_close(mDatabase);
     }
     
+}
+
+void DataEngine::syncData()
+{
+    std::cout << "Loading existing data from database...\n";
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        sqlite3_stmt* stmt;
+        const char* query = "SELECT name, phone, photo, notes FROM contacts";
+        int result = sqlite3_prepare_v2(mDatabase, query, -1, &stmt, nullptr);
+        checkOperation(result, "syncData prepare");
+    
+        while (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            std::string name = sqlite3_column_text(stmt, 0) ? reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)) : "";
+            std::string phone = sqlite3_column_text(stmt, 1) ? reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1)) : "";
+            const void* photoBlob = sqlite3_column_blob(stmt, 2);
+            int photoSize = sqlite3_column_bytes(stmt, 2);
+            std::vector<unsigned char> photo;
+            if ((photoBlob != nullptr) && (photoSize > 0)) {
+                photo.assign(static_cast<const unsigned char*>(photoBlob), static_cast<const unsigned char*>(photoBlob) + photoSize);
+            } 
+            else {
+                photo = std::vector<unsigned char>();
+            }
+            std::string notes = sqlite3_column_text(stmt, 3) ? reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)) : "";
+            std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers({phone}).setBlobImage(photo).setNotes(notes).buildShared();
+            mContactsTable.emplace(name, contact);
+        }
+    }
 }
 
 void DataEngine::checkOperation(int ret, const std::string& message)
@@ -188,6 +219,17 @@ std::vector<std::shared_ptr<Contact>> DataEngine::searchByNumber(const std::stri
 
 void DataEngine::registerCallback(DataEngine::DatabaseCallback* callback)
 {
+
+}
+
+void DataEngine::dump()
+{
+    std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator item = mContactsTable.begin();
+    while (item != mContactsTable.end())
+    {
+        std::cout << item->second->toString();
+        item++;
+    }
 }
 
 std::vector<unsigned char> DataEngine::loadJPEG(const std::string& filePath)
