@@ -1,5 +1,7 @@
 #include <iostream>
+#include <string>
 #include "DataEngine.h"
+#include "Contact.h"
 
 class Callback : public DataEngine::DatabaseCallback
 {
@@ -29,7 +31,11 @@ int main(void)
       }
       else if (input == "dump") {
         instance.dump();
+      }else if(input == "del") {
+        std::cout << "Enter id of contact: ";
+        std::getline(std::cin, input);
+        int id = stoi(input);
+        instance.deleteContact(id);
       }
-    }
-    
+    } 
 }
