@@ -39,6 +39,7 @@ class DataEngine
         bool updateContact(const int& id, const Contact& contact);
         bool deleteContact(const int& id);
         bool deleteContact(const Contact& contact);
+        bool isExistContact(const int& id);
         std::vector<std::shared_ptr<Contact>> searchByName(const std::string& name);
         std::vector<std::shared_ptr<Contact>> searchByNumber(const std::string& number);
         void registerCallback(DataEngine::DatabaseCallback* callback);
