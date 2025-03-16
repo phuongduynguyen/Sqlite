@@ -49,6 +49,7 @@ class DataEngine
         void syncData(); 
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
         void workerThread();
+        void watcherThread();
         void openDatabase(const std::string& dbPath);
         void notifyCallback(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action);
         void checkOperation(int ret, const std::string& message);
@@ -63,6 +64,7 @@ class DataEngine
         std::mutex mQueueMutex;
         std::condition_variable mQueueCV;
         std::thread* mWorkerThread;
+        std::thread* mWatcherThread;
         bool mRunning;
         std::vector<DataEngine::DatabaseCallback*> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;

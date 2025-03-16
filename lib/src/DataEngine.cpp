@@ -1,4 +1,8 @@
 #include "DataEngine.h"
+#include <sys/inotify.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 static DataEngine* gInstance = nullptr;
 
@@ -48,6 +52,7 @@ DataEngine::DataEngine()
     }
     mRunning = true;
     mWorkerThread = new std::thread(&DataEngine::workerThread, this);
+    mWatcherThread = new std::thread(&DataEngine::watcherThread, this);
     sqlite3_update_hook(mDatabase, onUpdateHook, this);
     syncData();
 }
@@ -297,6 +302,50 @@ void DataEngine::workerThread()
     }
 }
 
+void DataEngine::watcherThread()
+{
+    int fd = inotify_init();
+    if (fd < 0) {
+        std::cerr << "Failed to initialize inotify\n";
+        return;
+    }
+
+    int wd = inotify_add_watch(fd, DB_NAME.c_str(), IN_MODIFY | IN_CLOSE_WRITE);
+
+    if (wd < 0) {
+        std::cerr << "Failed to add watch inotify\n";
+        close(fd);
+        return;
+    }
+
+    std::string walName = DB_NAME + "-wal";
+    int wdWal = inotify_add_watch(fd, walName.c_str(), IN_MODIFY | IN_CLOSE_WRITE);
+    if (wdWal < 0 && errno != ENOENT) {
+        std::cerr << "Failed to add watch for " << walName << ": " << strerror(errno) << "\n";
+    }
+
+    char buffer[40960];
+    while (mRunning)
+    {
+        int length = read(fd, buffer, sizeof(buffer));
+        if (length > 0) {
+            std::cout << "Database has changed " << "\n";
+            int i = 0;
+            while (i < length)
+            {
+                struct inotify_event* event = (struct inotify_event*)&buffer[i];
+                if (event->len > 0) {
+                    std::cout << "File: " << event->name << ", ";
+                }
+                std::cout << "Event: " << ((event->mask) & IN_MODIFY ? "IN_MODIFY" : ((event->mask) & IN_CLOSE_WRITE ? " IN_CLOSE_WRITE " : "")) << "\n";
+                i += sizeof(struct inotify_event) + event->len;           
+            }
+            
+        }
+    }
+    
+}
+
 void DataEngine::openDatabase(const std::string& dbPath)
 {
 
@@ -317,6 +366,7 @@ void DataEngine::onUpdateHook(void* userData, int operation, const char* databas
     std::string phone = "";
     const void* photo = "";
     std::string notes = "";
+    std::cout << "onUpdateHook " << databaseName << "\n";
 
     DataEngine* instance = static_cast<DataEngine*>(userData);
     DataEngine::Action action = DataEngine::Action::None;
