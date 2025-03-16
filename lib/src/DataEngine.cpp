@@ -204,7 +204,7 @@ bool DataEngine::deleteContact(const int& id)
 
 bool DataEngine::deleteContact(const Contact& contact)
 {
-
+    
 }
 
 std::vector<std::shared_ptr<Contact>> DataEngine::searchByName(const std::string& name)

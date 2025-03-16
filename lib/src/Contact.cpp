@@ -78,6 +78,11 @@ std::vector<unsigned char> Contact::getblobImage() const
     return mImagesBlob;
 }
 
+int Contact::getId() const
+{
+    return mId;
+}
+
 void Contact::showImage()
 {
     // TBD: Need using OpenGL to render
@@ -112,3 +117,14 @@ void Contact::setBlobImage(const std::vector<unsigned char>& blob)
 {
     mImagesBlob = blob;
 }
+
+void Contact::setId(const int& id)
+{
+    mId = id;
+}
+
+bool Contact::operator==(const Contact& other)
+{
+    return ((mId == other.getId()) && (mName == other.getName()) && (mNumbers == other.getPhoneNumbers()) && (mNotes == other.getNotes()));
+}
+

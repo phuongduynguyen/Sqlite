@@ -75,6 +75,7 @@ class Contact final
         std::string getNotes() const;
         std::string getUri() const;
         std::vector<unsigned char>  getblobImage() const;
+        int getId() const;
         void showImage();
         std::string toString() const;
         void setName(const std::string& name);
@@ -82,6 +83,9 @@ class Contact final
         void setNotes(const std::string& notes);
         void setUri(const std::string& uri);
         void setBlobImage(const std::vector<unsigned char>& blob);
+        void setId(const int& id);
+        bool operator==(const Contact& other);
+
     private:
         Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri, const std::vector<unsigned char>& blob = std::vector<unsigned char>{});
 
@@ -90,6 +94,7 @@ class Contact final
         std::string mNotes;
         std::string mUri;
         std::vector<unsigned char> mImagesBlob;
+        int mId;
 };
 
 #endif // CONTACT_H
