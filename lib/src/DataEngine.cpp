@@ -193,6 +193,40 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
 bool DataEngine::addContact(const Contact& contact)
 {
     std::lock_guard<std::mutex> lock(mQueueMutex);
+    const char* insertSQL = "INSERT INTO contacts (name, phone, photo, notes) VALUES (?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
+    int result = sqlite3_prepare_v2(mDatabase, insertSQL, -1, &stmt, nullptr);
+    checkOperation(result, " prepare insert ");
+
+    if(mContactsTable.find(contact.getName()) != mContactsTable.end()) {
+        std::cout << "Contact exists, dont need add \n";
+        return false;
+    }
+    mContactsTable.emplace(contact.getName(),std::make_shared<Contact>(contact));
+    try {
+        std::string name = contact.getName();
+        sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
+        std::string phone = contact.getPhoneNumbersString();
+        sqlite3_bind_text(stmt, 2, phone.c_str(), -1, SQLITE_STATIC);
+        if (contact.getblobImage().size() == 0) {
+            sqlite3_bind_blob(stmt, 3, contact.getblobImage().data(), contact.getblobImage().size(), SQLITE_STATIC);
+        }
+        else {
+            sqlite3_bind_null(stmt, 3);
+        }
+        std::string notes = contact.getNotes();
+        sqlite3_bind_text(stmt, 4, notes.c_str(), -1, SQLITE_STATIC);
+        debugStmt(stmt);
+        result = sqlite3_step(stmt);
+        checkOperation(result, " inserting " );
+        int id = sqlite3_last_insert_rowid(mDatabase);
+        sqlite3_finalize(stmt);
+        notifyCallback(DB_NAME, id, std::make_shared<Contact>(contact), DataEngine::Action::Insert);
+    }
+    catch(const std::exception& e) {
+        std::cerr << e.what() << '\n';
+    }
+    return result;
 }
 
 bool DataEngine::updateContact(const int& id, const Contact& contact)
@@ -208,7 +242,7 @@ bool DataEngine::deleteContact(const int& id)
     }
     std::string contactName = getNameFromID(id);
     //update the order of id
-    updateID(id);
+    // updateID(id);
     if(mContactsTable.find(contactName) != mContactsTable.end()) {
         mContactsTable.erase(contactName);
     }
@@ -325,7 +359,7 @@ bool DataEngine::isExistContact(const int& id)
 
 std::vector<std::shared_ptr<Contact>> DataEngine::searchByName(const std::string& name)
 {
-
+    
 }
 
 std::vector<std::shared_ptr<Contact>> DataEngine::searchByNumber(const std::string& number)
