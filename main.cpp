@@ -21,6 +21,7 @@ int main(void)
     std::thread* callbackThread = new std::thread([&instance, &callbackIml](){
         instance.registerCallback(&callbackIml);
     });
+
     while (true)
     {
       std::cout << "***************************************************************** \n";
@@ -41,7 +42,8 @@ int main(void)
           instance.addContact("Huy1", {"0999999999"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
           instance.addContact("Duy2", {"0865950091"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
           instance.addContact("HuyGay", {"0999999999"}, "My num", "/home/duynp/C++/SqlLite/build/meo.jpg");
-        }else{
+        }
+        else{
           std::shared_ptr<Contact> contact = Contact::Builder().setName("Huy").setPhoneNumbers({"0384988891"}).setNotes("Mynum").setImageUri("/home/duynp/C++/SqlLite/build/meo.jpg").buildShared();
           instance.addContact(*contact);
         }

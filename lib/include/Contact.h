@@ -86,6 +86,9 @@ class Contact final
         void setId(const int& id);
         bool operator==(const Contact& other);
 
+        template<typename T>
+        void syncContact(T&& other);
+
     private:
         Contact(const std::string& name,const std::vector<std::string>& numbers,const std::string& notes, const std::string& uri, const std::vector<unsigned char>& blob = std::vector<unsigned char>{});
 
