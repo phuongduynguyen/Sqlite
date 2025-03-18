@@ -17,8 +17,8 @@
 #include <list>
 #include "Contact.h"
 
-class DataEngine
-{
+class DataEngine 
+{ 
     public:
         static DataEngine& getInstance();
 
