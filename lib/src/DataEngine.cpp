@@ -101,8 +101,15 @@ void DataEngine::syncData()
                 photo = std::vector<unsigned char>();
             }
             std::string notes = sqlite3_column_text(stmt, 3) ? reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)) : "";
+            std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator foundedItem = mContactsTable.find(name);
             std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers({phone}).setBlobImage(photo).setNotes(notes).buildShared();
-            mContactsTable.emplace(name, contact);
+            if (foundedItem == mContactsTable.end()) {
+                
+                mContactsTable.emplace(name, contact);
+            } 
+            else {
+                foundedItem->second->syncContact(contact);
+            }
         }
     }
 }
@@ -367,17 +374,12 @@ std::vector<std::shared_ptr<Contact>> DataEngine::searchByNumber(const std::stri
 
 }
 
-void DataEngine::registerCallback(DataEngine::DatabaseCallback* callback)
-{
-
-}
-
 void DataEngine::dump()
 {
     std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator item = mContactsTable.begin();
     while (item != mContactsTable.end())
     {
-        std::cout << item->second->toString();
+        std::cout << "RefCount: " + item->second.use_count() << " "<< item->second->toString() ;
         item++;
     }
 }
@@ -562,3 +564,6 @@ std::ostream& operator<<(std::ostream& strm, const DataEngine::Action& action)
     }
     return *ptr;
 }
+
+template void DataEngine::registerCallback<DataEngine::DatabaseCallback*>(DataEngine::DatabaseCallback*&&);
+template void DataEngine::registerCallback<std::shared_ptr<DataEngine::DatabaseCallback>>(std::shared_ptr<DataEngine::DatabaseCallback>&&);

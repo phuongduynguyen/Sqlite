@@ -128,3 +128,53 @@ bool Contact::operator==(const Contact& other)
     return ((mId == other.getId()) && (mName == other.getName()) && (mNumbers == other.getPhoneNumbers()) && (mNotes == other.getNotes()));
 }
 
+template<typename T>
+void Contact::syncContact(T&& other)
+{
+    if constexpr (std::is_same_v<std::decay_t<T>, Contact>) {
+        std::cout << "Syncing with const Contact&\n";
+        mName = other.getName();
+        mId = other.getId();
+        mNumbers = other.getPhoneNumbers();
+        mNotes = other.getNotes();
+        mUri = other.getUri();
+        mImagesBlob = other.getblobImage();
+    }
+    else if constexpr(std::is_same_v<std::decay_t<T>, std::shared_ptr<Contact>>) {
+        std::cout << "Syncing with shared_ptr Contact\n";
+        if (other) {
+            mName = other->getName();
+            mId = other->getId();
+            mNumbers = other->getPhoneNumbers();
+            mNotes = other->getNotes();
+            mUri = other->getUri();
+            mImagesBlob = other->getblobImage();
+        }
+        else {
+            std::wcerr << "syncContact but null ptr\n";
+        }
+    }
+    else if (std::is_same_v<std::remove_reference_t<T>,const std::unique_ptr<Contact>>)
+    {
+        std::cout << "Syncing with unique_ptr Contact\n";
+        if (other) {
+            mName = other->getName();
+            mId = other->getId();
+            mNumbers = other->getPhoneNumbers();
+            mNotes = other->getNotes();
+            mUri = other->getUri();
+            mImagesBlob = other->getblobImage();
+        }
+        else {
+            std::wcerr << "syncContact but null ptr\n";
+        }
+    }
+    else {
+        std::wcerr << "syncContact Not match any type\n";
+    }
+}
+
+template void Contact::syncContact<const Contact&>(const Contact&);
+template void Contact::syncContact<std::unique_ptr<Contact>>(std::unique_ptr<Contact>&&);
+template void Contact::syncContact<std::shared_ptr<Contact>>(std::shared_ptr<Contact>&&);
+template void Contact::syncContact<std::shared_ptr<Contact>&>(std::shared_ptr<Contact>&);

@@ -46,7 +46,30 @@ class DataEngine
         std::string getNameFromID(const int& id);
         std::vector<std::shared_ptr<Contact>> searchByName(const std::string& name);
         std::vector<std::shared_ptr<Contact>> searchByNumber(const std::string& number);
-        void registerCallback(DataEngine::DatabaseCallback* callback);
+
+        template<typename T>
+        void registerCallback(T&& callback) {
+            {
+                std::lock_guard<std::mutex> lock(mMutex);
+                if (!std::is_convertible_v<std::remove_pointer_t<std::decay_t<T>>*, DataEngine::DatabaseCallback*>) {
+                    std::wcerr << "registerCallback with invalid type \n";
+                    return;
+                }
+        
+                std::function<void(const std::string, const DataEngine::Action&, const int&,  const std::shared_ptr<Contact>&)> callbackFunc = [cb = std::forward<T>(callback)](const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact) {
+                    if constexpr ((std::is_pointer_v<std::decay_t<T>>) || (std::is_same_v<std::decay_t<T>, std::shared_ptr<DataEngine::DatabaseCallback>>)) {
+                        if (cb != nullptr) {
+                            cb->onDatabaseChanged(dbName, action, id, contact);
+                        }
+                        else {
+                            std::wcerr << "onDatabaseChanged with invalid cb \n";
+                        }
+                    }
+                };
+                mCallbacks.emplace_back(callbackFunc);
+            }
+        }
+
         void dump();
         
     private:
@@ -70,7 +93,7 @@ class DataEngine
         std::thread* mWorkerThread;
         std::thread* mWatcherThread;
         bool mRunning;
-        std::vector<DataEngine::DatabaseCallback*> mCallbacks;
+        std::vector<std::function<void(const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact)>> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;
         std::unordered_map<std::string,std::shared_ptr<Contact>> mContactsTable;
 };
