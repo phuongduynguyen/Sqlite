@@ -6,7 +6,7 @@
 class Callback : public DataEngine::DatabaseCallback
 {
     public:
-        void onDatabaseChanged(const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact) override
+        void onDatabaseChanged(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action) override
         {
             std::cout << "main onDatabaseChanged : " << dbName << " action: " << static_cast<int>(action) << " \n";
 

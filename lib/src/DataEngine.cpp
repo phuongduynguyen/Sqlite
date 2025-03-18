@@ -247,36 +247,39 @@ bool DataEngine::deleteContact(const int& id)
         std::cout << "The contact is not exists" <<std::endl;
         return false;
     }
-    std::string contactName = getNameFromID(id);
-    //update the order of id
-    // updateID(id);
-    if(mContactsTable.find(contactName) != mContactsTable.end()) {
-        mContactsTable.erase(contactName);
-    }
-    std::lock_guard<std::mutex> lock(mQueueMutex);
-    std::cout << "deleteContact with ID: " << id << std::endl;
-    const char* deleteSQL = "DELETE FROM contacts WHERE id = ?;";
-    sqlite3_stmt* stmt;
     bool success = false;
-    std::shared_ptr<Contact> contact;
-    int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
-    checkOperation(result, " prepare delete ");
-    try{
-        sqlite3_bind_int(stmt, 1, id);
-        success = (sqlite3_step(stmt) == SQLITE_DONE);
-        debugStmt(stmt);
-        result = sqlite3_step(stmt);
-        checkOperation(result, " Deleting " );
-        notifyCallback(DB_NAME, id, contact, DataEngine::Action::Delete);
-        sqlite3_finalize(stmt);
+    {
+        std::lock_guard<std::mutex> lock(mQueueMutex);
+        std::string contactName = getNameFromID(id);
+        // update the order of id
+        // updateID(id);
+        if(mContactsTable.find(contactName) != mContactsTable.end()) {
+            mContactsTable.erase(contactName);
+        }
+        std::cout << "deleteContact with ID: " << id << std::endl;
+        const char* deleteSQL = "DELETE FROM contacts WHERE id = ?;";
+        sqlite3_stmt* stmt;
+        std::shared_ptr<Contact> contact;
+        int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
+        checkOperation(result, " prepare delete ");
+        try{
+            sqlite3_bind_int(stmt, 1, id);
+            success = (sqlite3_step(stmt) == SQLITE_DONE);
+            debugStmt(stmt);
+            result = sqlite3_step(stmt);
+            checkOperation(result, " Deleting " );
+            notifyCallback(DB_NAME, id, contact, DataEngine::Action::Delete);
+            sqlite3_finalize(stmt);
+        }
+        catch(const std::exception& e) {
+            std::cerr << e.what() << '\n';
+        }
+        // Check if database is empty or not? If yes, do reset ID count
+        if(isDatabaseEmpty()){
+            resetIDCounter();
+        }
     }
-    catch(const std::exception& e) {
-        std::cerr << e.what() << '\n';
-    }
-    //Check if database is empty or not? If yes, do reset ID count
-    if(isDatabaseEmpty()){
-        resetIDCounter();
-    }
+
     return success;
 }
 
@@ -463,7 +466,12 @@ void DataEngine::openDatabase(const std::string& dbPath)
 
 void DataEngine::notifyCallback(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)
 {
-
+    std::vector<std::function<void(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)>>::iterator item = mCallbacks.begin();
+    while (item != mCallbacks.end())
+    {
+        (*item)(dbName, id, contact, action);
+        item++;
+    }
 }
 
 void DataEngine::onUpdateHook(void* userData, int operation, const char* databaseName, const char* tableName, sqlite3_int64 rowId)

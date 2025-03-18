@@ -31,7 +31,7 @@ class DataEngine
         };
         class DatabaseCallback {
             public:
-                virtual void onDatabaseChanged(const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact) = 0;
+                virtual void onDatabaseChanged(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action) = 0;
         };
 
         void addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri);
@@ -56,10 +56,10 @@ class DataEngine
                     return;
                 }
         
-                std::function<void(const std::string, const DataEngine::Action&, const int&,  const std::shared_ptr<Contact>&)> callbackFunc = [cb = std::forward<T>(callback)](const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact) {
+                std::function<void(const std::string& , const int& , const std::shared_ptr<Contact>& , const DataEngine::Action& )> callbackFunc = [cb = std::forward<T>(callback)](const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action) {
                     if constexpr ((std::is_pointer_v<std::decay_t<T>>) || (std::is_same_v<std::decay_t<T>, std::shared_ptr<DataEngine::DatabaseCallback>>)) {
                         if (cb != nullptr) {
-                            cb->onDatabaseChanged(dbName, action, id, contact);
+                            cb->onDatabaseChanged(dbName, id, contact, action);
                         }
                         else {
                             std::wcerr << "onDatabaseChanged with invalid cb \n";
@@ -71,7 +71,7 @@ class DataEngine
         }
 
         void dump();
-        
+
     private:
         void syncData(); 
         std::vector<unsigned char> loadJPEG(const std::string& filePath);
@@ -93,7 +93,7 @@ class DataEngine
         std::thread* mWorkerThread;
         std::thread* mWatcherThread;
         bool mRunning;
-        std::vector<std::function<void(const std::string dbName, const DataEngine::Action& action ,const int& id, const std::shared_ptr<Contact>& contact)>> mCallbacks;
+        std::vector<std::function<void(const std::string& dbName, const int& id , const std::shared_ptr<Contact>& contact, const DataEngine::Action& action)>> mCallbacks;
         std::vector<std::shared_ptr<Contact>> mContacts;
         std::unordered_map<std::string,std::shared_ptr<Contact>> mContactsTable;
 };
