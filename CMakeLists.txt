@@ -26,6 +26,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
 
+
 set(SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
 if(BUILD_QT)
