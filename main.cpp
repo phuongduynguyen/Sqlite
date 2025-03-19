@@ -4,7 +4,6 @@
 #include "Contact.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include "test.h"
 #include <QQmlContext>
 
 class Callback : public DataEngine::DatabaseCallback
@@ -21,8 +20,12 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
-    Test test;
-    engine.rootContext()->setContextProperty("test", &test);
+    DataEngine& instance = DataEngine::getInstance();
+    HmiInterface hmiIntf;
+    // engine.rootContext()->setContextProperty("interface", &interface);
+    // qmlRegisterType<HmiInterface>("MyApp", 1, 0, "HmiInterface");
+    engine.rootContext()->setContextProperty("hmiIntf", &hmiIntf);
+    engine.clearComponentCache();
 
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
 
@@ -30,7 +33,6 @@ int main(int argc, char *argv[])
         return -1;
 
     return app.exec();
-    // DataEngine& instance = DataEngine::getInstance();
     // std::string input;
     // Callback callbackIml;
     // std::thread* callbackThread = new std::thread([&instance, &callbackIml](){

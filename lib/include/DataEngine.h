@@ -16,6 +16,17 @@
 #include <unordered_map>
 #include <list>
 #include "Contact.h"
+#include <QObject>
+#include <QDebug>
+
+class HmiInterface : public QObject
+{
+    Q_OBJECT
+    public:
+        explicit HmiInterface(QObject *parent = nullptr) : QObject(parent){}
+        Q_INVOKABLE void sendMessage(const QString &msg);
+        Q_INVOKABLE void addContactInterface(const QString& name, const std::vector<QString>& numbers, const QString& notes, const QString& uri);
+};
 
 class DataEngine 
 { 
