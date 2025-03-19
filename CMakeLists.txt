@@ -1,34 +1,56 @@
+# Build with QT: cmake -B build . -DBUILD_QT=ON
+# Build without QT: cmake -B build . -DBUILD_QT=OFF
+
+
 cmake_minimum_required(VERSION 3.5)
 project(DatabaseRun LANGUAGES CXX)
-set(CMAKE_PREFIX_PATH "/home/huy/Qt/6.5.3/gcc_64")
+
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 # set(CMAKE_AUTOMOC ON)
+set(CMAKE_PREFIX_PATH "~/Qt/6.5.3/gcc_64/lib/cmake")
 add_subdirectory(lib)
 set(LIB_NAME DataBase)
-find_package(Qt6 COMPONENTS Core Gui Quick REQUIRED)
+
+option(BUILD_QT "Build with QT" OFF)
+
+message(STATUS "BUILD_QT: ${BUILD_QT}")
+
+if (BUILD_QT)
+    add_definitions(-DBUILD_QT)
+    message(STATUS "Building for QT")
+endif()
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
 
-set(SOURCES
-main.cpp
-)
+set(SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
-set(HEADERS
-lib/include/DataEngine.h  
-)
+# set(HEADERS
+# lib/include/DataEngine.h  
+# )
 
-add_executable(app ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${SOURCES} ${HEADERS})
+add_executable(app ${SOURCE_FILES})
+# add_executable(app ${SOURCE_FILES} ${SOURCES} ${HEADERS})
 set_target_properties(app PROPERTIES AUTOMOC ON)
 set_property(TARGET app PROPERTY CXX_STANDARD 17)
+target_link_libraries(app ${LIB_NAME})
+# target_link_libraries(app ${LIB_NAME} Qt6::Core Qt6::Gui Qt6::Quick)
 
-target_link_libraries(app ${LIB_NAME} Qt6::Core Qt6::Gui Qt6::Quick)
-
-qt_add_resources(app "resources"
-    PREFIX "/"
-    FILES main.qml
-)
+# qt_add_resources(app "resources"
+#     PREFIX "/"
+#     FILES main.qml
+# )
+if (BUILD_QT)
+    target_link_libraries(app Qt6::Core Qt6::Gui Qt6::Quick)
+    qt_add_resources(app "resources"
+        PREFIX "/"
+        FILES main.qml
+    )
+endif()
 
 include(GNUInstallDirs)
 
