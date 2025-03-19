@@ -1,5 +1,6 @@
 #ifndef TEST_H
 #define TEST_H
+#ifdef BUILD_QT
 #include <QObject>
 
 class Test : public QObject {
@@ -9,4 +10,5 @@ class Test : public QObject {
 
     Q_INVOKABLE void showMessage(const QString &msg);
 };
+#endif 
 #endif // BACKEND_H
