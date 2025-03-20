@@ -8,25 +8,6 @@ static const std::string DB_NAME = "PhoneContact.db";
 
 std::ostream& operator<<(std::ostream& strm, const DataEngine::Action& values);
 
-void HmiInterface::sendMessage(const QString &msg)
-{
-    qDebug() << "sendMessage " << msg;
-}
-
-void HmiInterface::addContactInterface(const QString& name, const std::vector<QString>& numbers, const QString& notes, const QString& uri)
-{
-    std::vector<std::string> phone;
-    DataEngine& instance = DataEngine::getInstance();
-    for (const QString &numbers : numbers) {
-        phone.push_back(numbers.toStdString());
-    }
-
-    instance.addContact(name.toStdString(),phone,notes.toStdString(),uri.toStdString());
-}
-
-
-
-
 DataEngine& DataEngine::getInstance()
 {
     if (gInstance == nullptr) {

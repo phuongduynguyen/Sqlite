@@ -3,6 +3,7 @@
 #include "DataEngine.h"
 #include "Contact.h"
 #ifdef BUILD_QT
+#include "HmiInterface.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -36,7 +37,7 @@ int main(int argc, char *argv[])
         return -1;
 
     return app.exec();
-  #elif
+  #else
     DataEngine& instance = DataEngine::getInstance();
     std::string input;
     Callback callbackIml;
