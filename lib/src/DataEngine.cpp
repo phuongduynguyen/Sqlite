@@ -286,6 +286,10 @@ bool DataEngine::performDeleteContact(const int& id)
         success = (sqlite3_step(stmt) == SQLITE_DONE);
         debugStmt(stmt);
         sqlite3_finalize(stmt);
+        if(success){
+            updateID(id);
+            notifyCallback(DB_NAME, id, nullptr, DataEngine::Action::Delete);
+        }
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         sqlite3_finalize(stmt);
@@ -294,14 +298,12 @@ bool DataEngine::performDeleteContact(const int& id)
         resetIDCounter();
     }
 
-    notifyCallback(DB_NAME, id, nullptr, DataEngine::Action::Delete);
     return success;
 }
 
 void DataEngine::updateID(const int& id)
 {
     std::cout << "updateID" << "\n";
-    std::lock_guard<std::mutex> lock(mQueueMutex);
     const char* reorderSQL = 
         "WITH ordered AS ("
         "    SELECT id, ROW_NUMBER() OVER () AS new_id FROM contacts"
