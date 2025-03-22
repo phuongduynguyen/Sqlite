@@ -13,6 +13,7 @@ class HmiInterface : public QObject
         }
         Q_INVOKABLE void sendMessage(const QString &msg);
         Q_INVOKABLE void addContactInterface(const QString& name, const std::vector<QString>& numbers, const QString& notes, const QString& uri);
+        Q_INVOKABLE void deleteContactInterface(const QString& id);
     private:
         DataEngine& mInstance;
 };

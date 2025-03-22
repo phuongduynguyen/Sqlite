@@ -8,6 +8,7 @@ void HmiInterface::sendMessage(const QString &msg)
 
 void HmiInterface::addContactInterface(const QString& name, const std::vector<QString>& numbers, const QString& notes, const QString& uri)
 {
+    qDebug() << "Add contact from HMI";
     std::vector<std::string> phone;
     
     for (const QString &numbers : numbers) {
@@ -15,6 +16,12 @@ void HmiInterface::addContactInterface(const QString& name, const std::vector<QS
     }
 
     mInstance.addContact(name.toStdString(),phone,notes.toStdString(),uri.toStdString());
+}
+
+void HmiInterface::deleteContactInterface(const QString& id)
+{
+    qDebug() << "Delete contact from HMI with id: " << id.toInt() ;
+    mInstance.deleteContact(id.toInt());
 }
 
 
