@@ -12,8 +12,8 @@ target_include_directories(${MODEL_LIB_NAME}
 )
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick)
-    target_link_libraries(${MODEL_LIB_NAME} PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick)
-    set_target_properties(${MODEL_LIB_NAME} PROPERTIES
+target_link_libraries(${MODEL_LIB_NAME} PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick)
+set_target_properties(${MODEL_LIB_NAME} PROPERTIES
         AUTOMOC ON
         AUTORCC ON
         AUTOUIC ON

@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <unordered_map>
 #include <list>
+#include <type_traits>
 #include "Contact.h"
 
 class DataEngine 
@@ -35,7 +36,7 @@ class DataEngine
         };
 
         void addContact(const std::string& name, const std::vector<std::string>& numbers, const std::string& notes, const std::string& uri);
-        bool addContact(const Contact& contact);
+        void addContact(const Contact& contact);
         bool updateContact(const int& id, const Contact& contact);
         bool deleteContact(const int& id);
         bool deleteContact(const Contact& contact);
@@ -69,6 +70,8 @@ class DataEngine
                 mCallbacks.emplace_back(callbackFunc);
             }
         }
+
+        int getIdByContact(std::shared_ptr<Contact> contact);
 
         void dump();
 

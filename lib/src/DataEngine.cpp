@@ -72,7 +72,6 @@ DataEngine::~DataEngine()
     if (mDatabase != nullptr) {
         sqlite3_close(mDatabase);
     }
-    
 }
 
 void DataEngine::syncData()
@@ -102,12 +101,13 @@ void DataEngine::syncData()
             std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator foundedItem = mContactsTable.find(name);
             std::shared_ptr<Contact> contact = Contact::Builder().setName(name).setPhoneNumbers({phone}).setBlobImage(photo).setNotes(notes).buildShared();
             if (foundedItem == mContactsTable.end()) {
-                
                 mContactsTable.emplace(name, contact);
+
             } 
             else {
                 foundedItem->second->syncContact(contact);
             }
+            contact->setId(getIdByContact(contact));
         }
     }
 }
@@ -184,6 +184,7 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
 
                     int id = sqlite3_last_insert_rowid(mDatabase);
                     sqlite3_finalize(stmt);
+                    contact->setId(getIdByContact(contact));
                     notifyCallback(DB_NAME, id, contact, DataEngine::Action::Insert);
                 }
                 catch(const std::exception& e) {
@@ -195,43 +196,50 @@ void DataEngine::addContact(const std::string& name, const std::vector<std::stri
     }
 }
 
-bool DataEngine::addContact(const Contact& contact)
+void DataEngine::addContact(const Contact& contact)
 {
-    std::lock_guard<std::mutex> lock(mQueueMutex);
-    const char* insertSQL = "INSERT INTO contacts (name, phone, photo, notes) VALUES (?, ?, ?, ?);";
-    sqlite3_stmt* stmt;
-    int result = sqlite3_prepare_v2(mDatabase, insertSQL, -1, &stmt, nullptr);
-    checkOperation(result, " prepare insert ");
+    {
+        std::lock_guard<std::mutex> lock(mQueueMutex);
+        mTaskQueue.emplace_back([this, contact](){
+            const char* insertSQL = "INSERT INTO contacts (name, phone, photo, notes) VALUES (?, ?, ?, ?);";
+            sqlite3_stmt* stmt;
+            int result = sqlite3_prepare_v2(mDatabase, insertSQL, -1, &stmt, nullptr);
+            checkOperation(result, " prepare insert ");
+        
+            if(mContactsTable.find(contact.getName()) != mContactsTable.end()) {
+                std::cout << "Contact exists, dont need add \n";
+                return;
+            }
 
-    if(mContactsTable.find(contact.getName()) != mContactsTable.end()) {
-        std::cout << "Contact exists, dont need add \n";
-        return false;
+            std::shared_ptr<Contact> contactPtr = Contact::Builder().setContact(contact).buildShared();
+            mContactsTable.emplace(contact.getName(),contactPtr);
+            try {
+                std::string name = contact.getName();
+                sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
+                std::string phone = contact.getPhoneNumbersString();
+                sqlite3_bind_text(stmt, 2, phone.c_str(), -1, SQLITE_STATIC);
+                if (contact.getblobImage().size() == 0) {
+                    sqlite3_bind_blob(stmt, 3, contact.getblobImage().data(), contact.getblobImage().size(), SQLITE_STATIC);
+                }
+                else {
+                    sqlite3_bind_null(stmt, 3);
+                }
+                std::string notes = contact.getNotes();
+                sqlite3_bind_text(stmt, 4, notes.c_str(), -1, SQLITE_STATIC);
+                debugStmt(stmt);
+                result = sqlite3_step(stmt);
+                checkOperation(result, " inserting " );
+                int id = sqlite3_last_insert_rowid(mDatabase);
+                sqlite3_finalize(stmt);
+                contactPtr->setId(getIdByContact(contactPtr));
+                notifyCallback(DB_NAME, id, contactPtr, DataEngine::Action::Insert);
+            }
+            catch(const std::exception& e) {
+                std::cerr << e.what() << '\n';
+            }
+        });
+        mQueueCV.notify_all();
     }
-    mContactsTable.emplace(contact.getName(),std::make_shared<Contact>(contact));
-    try {
-        std::string name = contact.getName();
-        sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
-        std::string phone = contact.getPhoneNumbersString();
-        sqlite3_bind_text(stmt, 2, phone.c_str(), -1, SQLITE_STATIC);
-        if (contact.getblobImage().size() == 0) {
-            sqlite3_bind_blob(stmt, 3, contact.getblobImage().data(), contact.getblobImage().size(), SQLITE_STATIC);
-        }
-        else {
-            sqlite3_bind_null(stmt, 3);
-        }
-        std::string notes = contact.getNotes();
-        sqlite3_bind_text(stmt, 4, notes.c_str(), -1, SQLITE_STATIC);
-        debugStmt(stmt);
-        result = sqlite3_step(stmt);
-        checkOperation(result, " inserting " );
-        int id = sqlite3_last_insert_rowid(mDatabase);
-        sqlite3_finalize(stmt);
-        notifyCallback(DB_NAME, id, std::make_shared<Contact>(contact), DataEngine::Action::Insert);
-    }
-    catch(const std::exception& e) {
-        std::cerr << e.what() << '\n';
-    }
-    return result;
 }
 
 bool DataEngine::updateContact(const int& id, const Contact& contact)
@@ -241,49 +249,95 @@ bool DataEngine::updateContact(const int& id, const Contact& contact)
 
 bool DataEngine::deleteContact(const int& id)
 {
-    if(!isExistContact(id)){
-        std::cout << "The contact is not exists" <<std::endl;
-        return false;
-    }
-    bool success = false;
     {
         std::lock_guard<std::mutex> lock(mQueueMutex);
-        std::string contactName = getNameFromID(id);
-        // update the order of id
-        // updateID(id);
-        if(mContactsTable.find(contactName) != mContactsTable.end()) {
-            mContactsTable.erase(contactName);
-        }
-        std::cout << "deleteContact with ID: " << id << std::endl;
-        const char* deleteSQL = "DELETE FROM contacts WHERE id = ?;";
-        sqlite3_stmt* stmt;
-        std::shared_ptr<Contact> contact;
-        int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
-        checkOperation(result, " prepare delete ");
-        try{
-            sqlite3_bind_int(stmt, 1, id);
-            success = (sqlite3_step(stmt) == SQLITE_DONE);
-            debugStmt(stmt);
-            result = sqlite3_step(stmt);
-            checkOperation(result, " Deleting " );
-            notifyCallback(DB_NAME, id, contact, DataEngine::Action::Delete);
-            sqlite3_finalize(stmt);
-        }
-        catch(const std::exception& e) {
-            std::cerr << e.what() << '\n';
-        }
-        // Check if database is empty or not? If yes, do reset ID count
-        if(isDatabaseEmpty()){
-            resetIDCounter();
-        }
-    }
+        mTaskQueue.emplace_back([this, id](){
+            
+            if(!isExistContact(id)){
+                std::cout << "The contact is not exists" <<std::endl;
+                return false;
+            }
 
-    return success;
+            std::string contactName = getNameFromID(id);
+            if(mContactsTable.find(contactName) != mContactsTable.end()) {
+                mContactsTable.erase(contactName);
+            }
+            std::cout << "deleteContact with ID: " << id << std::endl;
+            const char* deleteSQL = "DELETE FROM contacts WHERE id = ?;";
+            sqlite3_stmt* stmt;
+            std::shared_ptr<Contact> contact;
+            int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
+            checkOperation(result, " prepare delete ");
+            try{
+                sqlite3_bind_int(stmt, 1, id);
+                debugStmt(stmt);
+                result = sqlite3_step(stmt);
+                checkOperation(result, " Deleting " );
+                notifyCallback(DB_NAME, id, contact, DataEngine::Action::Delete);
+                sqlite3_finalize(stmt);
+            }
+            catch(const std::exception& e) {
+                std::cerr << e.what() << '\n';
+            }
+            if(isDatabaseEmpty()){
+                resetIDCounter();
+            }
+        });
+        mQueueCV.notify_all();
+    }
+    return true;
 }
 
 bool DataEngine::deleteContact(const Contact& contact)
 {
-    
+    {
+        std::lock_guard<std::mutex> lock(mQueueMutex);
+        mTaskQueue.emplace_back([this, contact]() {
+            std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator foundedItem = mContactsTable.begin();
+            bool isFound = false;
+            while (foundedItem != mContactsTable.end())
+            {
+                if (foundedItem->second->equal(contact)) {
+                    isFound = true;
+                    break;
+                }
+                foundedItem++;
+            }
+
+            if (!isFound) {
+                std::wcerr << "Delete but not found contact: " << contact.toString().c_str() << "\n";
+                return;
+            }
+            
+            std::cout << "Deleting Contact: " << foundedItem->second->toString().c_str() << "\n";
+            std::shared_ptr<Contact> contactPtr = foundedItem->second;
+
+            mContactsTable.erase(contactPtr->getName());
+
+            const char* deleteSQL = "DELETE FROM contacts WHERE phone = ?;";
+            sqlite3_stmt* stmt;
+            int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
+            checkOperation(result, " prepare delete ");
+            try{
+                sqlite3_bind_text(stmt, 1, foundedItem->second->getPhoneNumbersString().c_str(), -1, SQLITE_STATIC);
+                debugStmt(stmt);
+                result = sqlite3_step(stmt);
+                checkOperation(result, " Deleting " );
+                notifyCallback(DB_NAME, -1, contactPtr, DataEngine::Action::Delete);
+                sqlite3_finalize(stmt);
+                int rowsAffected = sqlite3_changes(mDatabase);
+                std::cout << "Rows deleted: " << rowsAffected << "\n";
+            }
+            catch(const std::exception& e) {
+                std::cerr << e.what() << '\n';
+            }
+            if(isDatabaseEmpty()){
+                resetIDCounter();
+            }
+        });
+        mQueueCV.notify_all();
+    }
+    return true;
 }
 
 void DataEngine::updateID(const int& id)
@@ -375,12 +429,37 @@ std::vector<std::shared_ptr<Contact>> DataEngine::searchByNumber(const std::stri
 
 }
 
+int DataEngine::getIdByContact(std::shared_ptr<Contact> contact)
+{
+    std::string phoneNums = "";
+    if ((contact != nullptr)) {
+        phoneNums = contact->getPhoneNumbersString();
+    }
+    
+    if (phoneNums.empty()) {
+        return -1;
+    }
+
+    int ret = -1;
+    const char* getId = "SELECT id FROM contacts WHERE phone = ?;";
+    sqlite3_stmt* stmt;
+    int result = sqlite3_prepare_v2(mDatabase, getId, -1, &stmt, nullptr);
+    checkOperation(result, "getId preparing");
+    sqlite3_bind_text(stmt, 1, phoneNums.c_str(), -1, SQLITE_STATIC);
+    checkOperation(result, "getting id ");
+    if(sqlite3_step(stmt) == SQLITE_ROW) {
+        ret = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    return ret;
+}
+
 void DataEngine::dump()
 {
     std::unordered_map<std::string,std::shared_ptr<Contact>>::iterator item = mContactsTable.begin();
     while (item != mContactsTable.end())
     {
-        std::cout << "RefCount: " + item->second.use_count() << " "<< item->second->toString() ;
+        std::cout << item->second->toString() ;
         item++;
     }
 }

@@ -30,6 +30,7 @@ Contact::Contact(const std::string& name,const std::vector<std::string>& numbers
     }
 }
 
+
 std::string Contact::getName() const
 {
     return mName;
@@ -89,7 +90,7 @@ void Contact::showImage()
 }
 
 std::string Contact::toString() const {
-    return "Contact - name: " + mName + " number: " + getPhoneNumbersString() + " Notes: " + mNotes + "\n";
+    return "Contact - name: " + mName + " number: " + getPhoneNumbersString() + " Notes: " + mNotes + " id: " + std::to_string(mId).c_str() + "\n";
 }
 
 void Contact::setName(const std::string& name)
@@ -125,6 +126,12 @@ void Contact::setId(const int& id)
 
 bool Contact::operator==(const Contact& other)
 {
+    return ((mId == other.getId()) && (mName == other.getName()) && (mNumbers == other.getPhoneNumbers()) && (mNotes == other.getNotes()));
+}
+
+bool Contact::equal(const Contact& other)
+{
+    std::cout << "id: " << ((mId == other.getId())) << " name: " << (mName == other.getName()) << " numbers: " << (mNumbers == other.getPhoneNumbers())  << " note: " << (mNotes == other.getNotes()) << "\n"; 
     return ((mId == other.getId()) && (mName == other.getName()) && (mNumbers == other.getPhoneNumbers()) && (mNotes == other.getNotes()));
 }
 

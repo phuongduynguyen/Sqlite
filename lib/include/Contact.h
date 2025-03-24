@@ -19,16 +19,36 @@ class Contact final
                 std::string mNotes;
                 std::string mUri;
                 std::vector<unsigned char> mBlob;
+                int mId;
             public:
-                Builder(const Contact& contact) {
-                    mName = contact.getName();
-                    mNumbers = contact.getPhoneNumbers();
-                    mNotes = contact.getNotes();
-                    mUri = contact.getUri();
+                Builder() {
                 }
 
-                Builder() {
-
+                template<typename T>
+                Builder& setContact(T&& contact) {
+                    if constexpr ((std::is_same_v<T, const Contact&>)) {
+                        mName = contact.getName();
+                        mNumbers = contact.getPhoneNumbers();
+                        mNotes = contact.getNotes();
+                        mUri = contact.getUri();
+                        mId = contact.getId();
+                    }
+                    else if constexpr ((std::is_pointer_v<T> && std::is_same_v<std::remove_pointer_t<T>,Contact>) || (std::is_same_v<T, std::shared_ptr<Contact>>)) {
+                        if (contact != nullptr) {
+                            mName = contact->getName();
+                            mNumbers = contact->getPhoneNumbers();
+                            mNotes = contact->getNotes();
+                            mUri = contact->getUri();
+                            mId = contact->getId();
+                        }
+                        else {
+                            std::wcerr << "setContact but nullptr contact\n";
+                        }
+                    }
+                    else {
+                        std::wcerr << "setContact but unsupport type\n";
+                    }
+                    return *this;
                 }
 
                 Builder& setName(const std::string& name) {
@@ -56,6 +76,11 @@ class Contact final
                     return *this;
                 }
 
+                Builder& setId(const int& id) {
+                    mUri = id;
+                    return *this;
+                }
+
                 Contact build() {
                     return Contact(mName, mNumbers, mNotes, mUri);
                 }
@@ -78,6 +103,7 @@ class Contact final
         int getId() const;
         void showImage();
         std::string toString() const;
+
         void setName(const std::string& name);
         void setPhoneNumbers(const std::string& phoneNums);
         void setNotes(const std::string& notes);
@@ -85,6 +111,7 @@ class Contact final
         void setBlobImage(const std::vector<unsigned char>& blob);
         void setId(const int& id);
         bool operator==(const Contact& other);
+        bool equal(const Contact& other);
 
         template<typename T>
         void syncContact(T&& other);
