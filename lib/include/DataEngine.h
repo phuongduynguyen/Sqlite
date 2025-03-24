@@ -40,6 +40,7 @@ class DataEngine
         bool updateContact(const int& id, const Contact& contact);
         bool deleteContact(const int& id);
         bool deleteContact(const Contact& contact);
+        bool performDeleteContact(const int& id);
         bool isExistContact(const int& id);
         bool isDatabaseEmpty();
         void resetIDCounter();

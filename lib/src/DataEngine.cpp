@@ -273,6 +273,7 @@ bool DataEngine::deleteContact(const int& id)
                 debugStmt(stmt);
                 result = sqlite3_step(stmt);
                 checkOperation(result, " Deleting " );
+                updateID(id);
                 notifyCallback(DB_NAME, id, contact, DataEngine::Action::Delete);
                 sqlite3_finalize(stmt);
             }
@@ -311,9 +312,8 @@ bool DataEngine::deleteContact(const Contact& contact)
             
             std::cout << "Deleting Contact: " << foundedItem->second->toString().c_str() << "\n";
             std::shared_ptr<Contact> contactPtr = foundedItem->second;
-
+            int id = foundedItem->second->getId();
             mContactsTable.erase(contactPtr->getName());
-
             const char* deleteSQL = "DELETE FROM contacts WHERE phone = ?;";
             sqlite3_stmt* stmt;
             int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
@@ -323,6 +323,7 @@ bool DataEngine::deleteContact(const Contact& contact)
                 debugStmt(stmt);
                 result = sqlite3_step(stmt);
                 checkOperation(result, " Deleting " );
+                updateID(id);
                 notifyCallback(DB_NAME, -1, contactPtr, DataEngine::Action::Delete);
                 sqlite3_finalize(stmt);
                 int rowsAffected = sqlite3_changes(mDatabase);
@@ -340,10 +341,45 @@ bool DataEngine::deleteContact(const Contact& contact)
     return true;
 }
 
+bool DataEngine::performDeleteContact(const int& id)
+{
+    bool success = false;
+    if (!isExistContact(id)) {
+        std::cout << "The contact does not exist" << std::endl;
+        return false;
+    }
+    std::string contactName = getNameFromID(id);
+    if (mContactsTable.find(contactName) != mContactsTable.end()) {
+        mContactsTable.erase(contactName);
+    }
+    std::cout << "deleteContact with ID: " << id << std::endl;
+    const char* deleteSQL = "DELETE FROM contacts WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    int result = sqlite3_prepare_v2(mDatabase, deleteSQL, -1, &stmt, nullptr);
+    checkOperation(result, "prepare delete");
+    try {
+        sqlite3_bind_int(stmt, 1, id);
+        success = (sqlite3_step(stmt) == SQLITE_DONE);
+        debugStmt(stmt);
+        sqlite3_finalize(stmt);
+        if(success){
+            updateID(id);
+            notifyCallback(DB_NAME, id, nullptr, DataEngine::Action::Delete);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+        sqlite3_finalize(stmt);
+    }
+    if (isDatabaseEmpty()) {
+        resetIDCounter();
+    }
+
+    return success;
+}
+
 void DataEngine::updateID(const int& id)
 {
     std::cout << "updateID" << "\n";
-    std::lock_guard<std::mutex> lock(mQueueMutex);
     const char* reorderSQL = 
         "WITH ordered AS ("
         "    SELECT id, ROW_NUMBER() OVER () AS new_id FROM contacts"
